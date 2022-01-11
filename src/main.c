@@ -74,7 +74,7 @@ void init_ttf()
 }
 
 /**
- * Initialise mixer
+ * Demarre audio
  */
 void init_audio()
 {
@@ -90,10 +90,10 @@ void init_audio()
  */
 void setup_header_text()
 {
-  /*// See CMakeLists.txt to see how the resources folder is copied from the root to the bin folder
-  _font = TTF_OpenFont("resources/OpenSans-Regular.ttf", 18);
+  // See CMakeLists.txt to see how the resources folder is copied from the root to the bin folder
+  _font = TTF_OpenFont("resources/OpenSans-Regular.ttf", 5);
 
-  SDL_Surface *textSurface = TTF_RenderText_Blended(_font, "Mouse Click and Drag Rect. Press [Escape] to Exit",
+  SDL_Surface *textSurface = TTF_RenderText_Blended(_font, "Jeu de l'Othello",
                                                     white);
   _headerText = SDL_CreateTextureFromSurface(_renderer, textSurface);
 
@@ -105,29 +105,7 @@ void setup_header_text()
   SDL_FreeSurface(textSurface);
 
   // The value will probably be misreported as never used in CLion, however I think it should always be set
-  textSurface = NULL;*/
-}
-
-/**
- * Setup a sample texture
- */
-void setup_texture()
-{
-  /*_image = NULL;
-
-  // Load image at specified path
-  SDL_Surface *loadedSurface = IMG_Load("resources/floor.png");
-  if (loadedSurface == NULL) {
-    printf("[Error] Unable to load image : %s\n", SDL_GetError());
-    exit(0);
-  } else {
-    _image = SDL_CreateTextureFromSurface(_renderer, loadedSurface);
-    if (_image == NULL) {
-      printf("[Error] Unable to create texture : %s\n", SDL_GetError());
-    }
-
-    SDL_FreeSurface(loadedSurface);
-  }*/
+  textSurface = NULL;
 }
 
 /**
@@ -157,31 +135,6 @@ void play_audio()
 }
 
 /**
- * Handles dragging the sample rectangle around. Demonstrates mouse motion events.
- * @param e
- */
-void handle_mouse_drag(SDL_Event e)
-{
-  /*if (e.type == SDL_MOUSEBUTTONDOWN) {
-    // Point where mouse button down occurs
-    SDL_Point p = {.x = e.motion.x, .y = e.motion.y};
-
-    if (SDL_PointInRect(&p, &_sampleRect)) {
-      _inSampleRect = SDL_TRUE;
-    }
-  }
-
-  if (e.type == SDL_MOUSEBUTTONUP && _inSampleRect == SDL_TRUE) {
-    _inSampleRect = SDL_FALSE;
-  }
-
-  if (e.type == SDL_MOUSEMOTION && _inSampleRect == SDL_TRUE) {
-    _sampleRect.x += e.motion.xrel;
-    _sampleRect.y += e.motion.yrel;
-  }*/
-}
-
-/**
  * The main game loop. Continues to loop until Escape or an SDL_Quit event occurs
  */
 void main_loop()
@@ -190,7 +143,6 @@ void main_loop()
   SDL_Event event;
 
   while (loop) {
-
     // Allow quiting with escape key by polling for pending events
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_QUIT) {
@@ -204,11 +156,9 @@ void main_loop()
             loop = SDL_TRUE;
         }
       }
-      handle_mouse_drag(event);
     }
-
     // Blank out the renderer with all black
-    SDL_SetRenderDrawColor(_renderer, 0, 0, 0, 0);
+    SDL_SetRenderDrawColor(_renderer, 0, 255, 0, 255);
     SDL_RenderClear(_renderer);
 
     // Note that all rendercopys are order specific.
@@ -218,7 +168,7 @@ void main_loop()
     SDL_RenderCopy(_renderer, _image, NULL, NULL);
 
     // Render the sample rectangle
-    SDL_SetRenderDrawColor(_renderer, 255, 255, 255, 1);
+    SDL_SetRenderDrawColor(_renderer, 0, 255, 0, 1);
     SDL_RenderFillRect(_renderer, &_sampleRect);
 
     // Render sample text
@@ -231,36 +181,96 @@ void main_loop()
 }
 
 /**
- * Main entry point
- * @return exit code
+ * Dessine un cercle
  */
-int main()
-{
+void dessiner_pion(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32_t radius){
+
+    const int32_t diameter = (radius * 2);
+
+    int32_t x = (radius - 1);
+    int32_t y = 0;
+    int32_t tx = 1;
+    int32_t ty = 1;
+    int32_t error = (tx - diameter);
+
+    while (x >= y)
+    {
+        //  Each of the following renders an octant of the circle
+        SDL_RenderDrawPoint(renderer, centreX + x, centreY - y);
+
+        SDL_RenderDrawPoint(renderer, centreX + x, centreY + y);
+        SDL_RenderDrawPoint(renderer, centreX - x, centreY - y);
+        SDL_RenderDrawPoint(renderer, centreX - x, centreY + y);
+        SDL_RenderDrawPoint(renderer, centreX + y, centreY - x);
+        SDL_RenderDrawPoint(renderer, centreX + y, centreY + x);
+        SDL_RenderDrawPoint(renderer, centreX - y, centreY - x);
+        SDL_RenderDrawPoint(renderer, centreX - y, centreY + x);
+
+        if (error <= 0)
+        {
+            ++y;
+            error += ty;
+            ty += 2;
+        }
+
+        if (error > 0)
+        {
+            --x;
+            tx += 2;
+            error += (tx - diameter);
+        }
+    }
+}
+typedef struct Case{
+    int x;
+    int y;
+}Case;
+
+/**
+ * Creer le plateau de jeu
+ */
+void dessin_plateau(){
+    int x = 50;
+
     if (SDL_Init(SDL_INIT_VIDEO) == 0) {
         SDL_Window* window = NULL;
         SDL_Renderer* renderer = NULL;
 
-        if (SDL_CreateWindowAndRenderer(800, 800, 0, &window, &renderer) == 0) {
+        if (SDL_CreateWindowAndRenderer(740, 740, 0, &window, &renderer) == 0) {
             SDL_bool done = SDL_FALSE;
 
             while (!done) {
                 SDL_Event event;
 
-                SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+                SDL_SetRenderDrawColor(renderer, 0, 200, 150, SDL_ALPHA_OPAQUE);
                 SDL_RenderClear(renderer);
-                for(int i=0; i<6; i++){
 
-                }
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
-                SDL_RenderDrawLine(renderer, 50, 50, (550), 50);
-                SDL_RenderDrawLine(renderer, 50, 50, 50, 550);
-                SDL_RenderDrawLine(renderer, 50, 550, 550, 550);
-                SDL_RenderDrawLine(renderer, 50, 550, 50, 550);
+                SDL_RenderDrawLine(renderer, 50, 50, 690, 50);
+                SDL_RenderDrawLine(renderer, 50, 130, 690, 130);
+                SDL_RenderDrawLine(renderer, 50, 210, 690, 210);
+                SDL_RenderDrawLine(renderer, 50, 290, 690, 290);
+                SDL_RenderDrawLine(renderer, 50, 370, 690, 370);
+                SDL_RenderDrawLine(renderer, 50, 450, 690, 450);
+                SDL_RenderDrawLine(renderer, 50, 530, 690, 530);
+                SDL_RenderDrawLine(renderer, 50, 610, 690, 610);
+
+                SDL_RenderDrawLine(renderer, 50, 50, 50, 690);
+                SDL_RenderDrawLine(renderer, 130, 50, 130, 690);
+                SDL_RenderDrawLine(renderer, 210, 50, 210, 690);
+                SDL_RenderDrawLine(renderer, 290, 50, 290, 690);
+                SDL_RenderDrawLine(renderer, 370, 50, 370, 690);
+                SDL_RenderDrawLine(renderer, 450, 50, 450, 690);
+                SDL_RenderDrawLine(renderer, 530, 50, 530, 690);
+                SDL_RenderDrawLine(renderer, 610, 50, 610, 690);
+
+
+                SDL_RenderDrawLine(renderer, 50, 690, 690, 690);
+                SDL_RenderDrawLine(renderer, 690, 50, 690, 690);
+
+                dessiner_pion(renderer, 90, 90, 30);
+
                 SDL_RenderPresent(renderer);
-                /*SDL_RenderDrawLine(renderer, 320, 200, 300, 240);
-                SDL_RenderDrawLine(renderer, 300, 240, 340, 240);
-                SDL_RenderDrawLine(renderer, 340, 240, 320, 200);
-                SDL_RenderPresent(renderer);*/
 
                 while (SDL_PollEvent(&event)) {
                     if (event.type == SDL_QUIT) {
@@ -277,6 +287,16 @@ int main()
             SDL_DestroyWindow(window);
         }
     }
+}
+
+/**
+ * Main entry point
+ * @return exit code
+ */
+int main()
+{
+    Case Tiles[8][8];
+    dessin_plateau();
     SDL_Quit();
     return 0;
 }
