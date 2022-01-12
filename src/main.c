@@ -1,302 +1,166 @@
 #include <printf.h>
 #include <SDL.h>
-#include <SDL_ttf.h>
 #include <SDL_image.h>
 #include <SDL_mixer.h>
+#include "Othello.h"
 
-// SDL Window
-SDL_Window *_window;
-
-// SDL Renderer to draw to
-SDL_Renderer *_renderer;
-
-// Our default font
-TTF_Font *_font;
-
-// Easy access to a useful color
-SDL_Color white = {255, 255, 255};
-
-// Window size
-int _width = 640;
-int _height = 480;
-
-// Our sample header texture and where we're drawing our header to
-SDL_Rect _headerTextRect;
-SDL_Texture *_headerText;
-
-// Our sample texture
-SDL_Texture *_image;
-
-// Our sample rectangle that we can drag around the viewport
-SDL_Rect _sampleRect = {.x = 10, .y = 10, .w = 100, .h = 100};
-SDL_bool _inSampleRect = SDL_FALSE;
-
-// Our sample 'music'
-Mix_Music *_music = NULL;
-
-/**
- * Initialise SDL2 and output some useful display info
- */
-void init_sdl()
+enum ePosition
 {
-  if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
-    printf("[Error] SDL Init : %s \n", SDL_GetError());
-  } else {
-    printf("SDL INITIALISED\n");
-    SDL_DisplayMode dm;
-    SDL_GetCurrentDisplayMode(0, &dm);
-
-    printf("Display mode is %dx%dpx @ %dhz\n", dm.w, dm.h, dm.refresh_rate);
-  }
-}
+    DOWN
+};
 
 /**
- * Initialise an SDL Window and Renderer
- *
- * This uses SDL_CreateWindowAndRenderer. They can alternatively be created separately. See SDL2 Docs
- */
-void init_window_and_renderer()
+* Dessine un cercle rempli
+*/
+void draw_circle(SDL_Renderer *renderer, int x, int y, int radius, SDL_Color color)
 {
-  if (SDL_CreateWindowAndRenderer(_width, _height, SDL_WINDOW_SHOWN, &_window, &_renderer) != 0) {
-    printf("[Error] Creating Window and Renderer: %s\n", SDL_GetError());
-    exit(0);
-  } else {
-    printf("Created Window and Renderer %dx%d\n", _width, _height);
-  }
-}
-
-/**
- * Initialise TTF
- */
-void init_ttf()
-{
-  TTF_Init();
-}
-
-/**
- * Demarre audio
- */
-void init_audio()
-{
-  if (Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096) != 0) {
-    printf("[Error] Error Initialising Audio : %s\n", SDL_GetError());
-  } else {
-    printf("Audio Initialised\n");
-  }
-}
-
-/**
- * Setup a sample header text
- */
-void setup_header_text()
-{
-  // See CMakeLists.txt to see how the resources folder is copied from the root to the bin folder
-  _font = TTF_OpenFont("resources/OpenSans-Regular.ttf", 5);
-
-  SDL_Surface *textSurface = TTF_RenderText_Blended(_font, "Jeu de l'Othello",
-                                                    white);
-  _headerText = SDL_CreateTextureFromSurface(_renderer, textSurface);
-
-  _headerTextRect.x = _width / 2 - textSurface->w / 2;
-  _headerTextRect.y = 0;
-  _headerTextRect.w = textSurface->w;
-  _headerTextRect.h = textSurface->h;
-
-  SDL_FreeSurface(textSurface);
-
-  // The value will probably be misreported as never used in CLion, however I think it should always be set
-  textSurface = NULL;
-}
-
-/**
- * Setup a window app icon
- */
-void setup_window_icon()
-{
-  SDL_Surface *iconSurface;
-  iconSurface = IMG_Load("resources/appicon.jpg");
-
-  // The icon requires the window pointer NOT the renderer
-  SDL_SetWindowIcon(_window, iconSurface);
-
-  // ...and can now free the appicon surface
-  SDL_FreeSurface(iconSurface);
-}
-
-/**
- * Play a sample audio file
- */
-void play_audio()
-{
-  /*_music = Mix_LoadMUS("resources/sound.ogg");
-  if (Mix_PlayMusic(_music, -1) != 0) {
-    printf("[Error] Could not play music : %s", Mix_GetError());
-  }*/
-}
-
-/**
- * The main game loop. Continues to loop until Escape or an SDL_Quit event occurs
- */
-void main_loop()
-{
-  SDL_bool loop = SDL_TRUE;
-  SDL_Event event;
-
-  while (loop) {
-    // Allow quiting with escape key by polling for pending events
-    while (SDL_PollEvent(&event)) {
-      if (event.type == SDL_QUIT) {
-        loop = SDL_FALSE;
-      } else if (event.type == SDL_KEYDOWN) {
-        switch (event.key.keysym.sym) {
-          case SDLK_ESCAPE:
-            loop = SDL_FALSE;
-            break;
-          default:
-            loop = SDL_TRUE;
-        }
-      }
-    }
-    // Blank out the renderer with all black
-    SDL_SetRenderDrawColor(_renderer, 0, 255, 0, 255);
-    SDL_RenderClear(_renderer);
-
-    // Note that all rendercopys are order specific.
-
-    // Render the sample texture. We could use a source and/or destination rect to render to
-    // but for now we'll just use it as a background
-    SDL_RenderCopy(_renderer, _image, NULL, NULL);
-
-    // Render the sample rectangle
-    SDL_SetRenderDrawColor(_renderer, 0, 255, 0, 1);
-    SDL_RenderFillRect(_renderer, &_sampleRect);
-
-    // Render sample text
-    SDL_RenderCopy(_renderer, _headerText, NULL, &_headerTextRect);
-
-    // Present to renderer
-    SDL_RenderPresent(_renderer);
-    SDL_Delay(10);
-  }
-}
-
-/**
- * Dessine un cercle
- */
-void dessiner_pion(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32_t radius){
-
-    const int32_t diameter = (radius * 2);
-
-    int32_t x = (radius - 1);
-    int32_t y = 0;
-    int32_t tx = 1;
-    int32_t ty = 1;
-    int32_t error = (tx - diameter);
-
-    while (x >= y)
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    for (int w = 0; w < radius * 2; w++)
     {
-        //  Each of the following renders an octant of the circle
-        SDL_RenderDrawPoint(renderer, centreX + x, centreY - y);
-
-        SDL_RenderDrawPoint(renderer, centreX + x, centreY + y);
-        SDL_RenderDrawPoint(renderer, centreX - x, centreY - y);
-        SDL_RenderDrawPoint(renderer, centreX - x, centreY + y);
-        SDL_RenderDrawPoint(renderer, centreX + y, centreY - x);
-        SDL_RenderDrawPoint(renderer, centreX + y, centreY + x);
-        SDL_RenderDrawPoint(renderer, centreX - y, centreY - x);
-        SDL_RenderDrawPoint(renderer, centreX - y, centreY + x);
-
-        if (error <= 0)
+        for (int h = 0; h < radius * 2; h++)
         {
-            ++y;
-            error += ty;
-            ty += 2;
-        }
-
-        if (error > 0)
-        {
-            --x;
-            tx += 2;
-            error += (tx - diameter);
-        }
-    }
-}
-typedef struct Case{
-    int x;
-    int y;
-}Case;
-
-/**
- * Creer le plateau de jeu
- */
-void dessin_plateau(){
-    int x = 50;
-
-    if (SDL_Init(SDL_INIT_VIDEO) == 0) {
-        SDL_Window* window = NULL;
-        SDL_Renderer* renderer = NULL;
-
-        if (SDL_CreateWindowAndRenderer(740, 740, 0, &window, &renderer) == 0) {
-            SDL_bool done = SDL_FALSE;
-
-            while (!done) {
-                SDL_Event event;
-
-                SDL_SetRenderDrawColor(renderer, 0, 200, 150, SDL_ALPHA_OPAQUE);
-                SDL_RenderClear(renderer);
-
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
-                SDL_RenderDrawLine(renderer, 50, 50, 690, 50);
-                SDL_RenderDrawLine(renderer, 50, 130, 690, 130);
-                SDL_RenderDrawLine(renderer, 50, 210, 690, 210);
-                SDL_RenderDrawLine(renderer, 50, 290, 690, 290);
-                SDL_RenderDrawLine(renderer, 50, 370, 690, 370);
-                SDL_RenderDrawLine(renderer, 50, 450, 690, 450);
-                SDL_RenderDrawLine(renderer, 50, 530, 690, 530);
-                SDL_RenderDrawLine(renderer, 50, 610, 690, 610);
-
-                SDL_RenderDrawLine(renderer, 50, 50, 50, 690);
-                SDL_RenderDrawLine(renderer, 130, 50, 130, 690);
-                SDL_RenderDrawLine(renderer, 210, 50, 210, 690);
-                SDL_RenderDrawLine(renderer, 290, 50, 290, 690);
-                SDL_RenderDrawLine(renderer, 370, 50, 370, 690);
-                SDL_RenderDrawLine(renderer, 450, 50, 450, 690);
-                SDL_RenderDrawLine(renderer, 530, 50, 530, 690);
-                SDL_RenderDrawLine(renderer, 610, 50, 610, 690);
-
-
-                SDL_RenderDrawLine(renderer, 50, 690, 690, 690);
-                SDL_RenderDrawLine(renderer, 690, 50, 690, 690);
-
-                dessiner_pion(renderer, 90, 90, 30);
-
-                SDL_RenderPresent(renderer);
-
-                while (SDL_PollEvent(&event)) {
-                    if (event.type == SDL_QUIT) {
-                        done = SDL_TRUE;
-                    }
-                }
+            int dx = radius - w;
+            int dy = radius - h;
+            if ((dx*dx + dy*dy) <= (radius * radius))
+            {
+                SDL_RenderDrawPoint(renderer, x + dx, y + dy);
             }
         }
-
-        if (renderer) {
-            SDL_DestroyRenderer(renderer);
-        }
-        if (window) {
-            SDL_DestroyWindow(window);
-        }
     }
 }
 
 /**
- * Main entry point
- * @return exit code
- */
-int main()
+* affiche pions
+*/
+void affich(int tab[8][8], SDL_Renderer* renderer)
 {
-    Case Tiles[8][8];
-    dessin_plateau();
+    for (int i = 0; i < 8; i++)
+    {
+        for (int j = 0; j < 8; j++)
+        {
+            if (tab[i][j] == -1)
+            {
+                SDL_Color noir = {0,0,0};
+                draw_circle(renderer, (i*80)+40, (j*80)+40, 30, noir);
+            }
+            if (tab[i][j] == 1)
+            {
+                SDL_Color blanc = {255,255,255};
+                draw_circle(renderer, (i*80)+40, (j*80)+40, 30, blanc);
+            }
+        }
+    }
+}
+
+int main(int argc, char** argv)
+{
+    int tab[8][8];
+    for (int i = 0; i < 8; i++)
+    {
+        for (int j = 0; j < 8; j++)
+        {
+            tab[i][j] = 0;
+        }
+    }
+    tab[3][3] = 1;
+    tab[4][4] = 1;
+    tab[4][3] = -1;
+    tab[3][4] = -1;
+
+    int game;
+
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+
+    SDL_Texture* texture;
+    SDL_Surface* image;
+    SDL_Rect imagesize;
+    SDL_Rect placementpion;
+
+    SDL_Event e;
+    int quit = 0;
+
+    int pos = DOWN;
+
+    int x, y, a, b;
+
+    SDL_Color color = {255, 255, 255};
+
+    Uint32 buttons;
+
+    if (!SDL_WasInit(SDL_INIT_VIDEO))
+    {
+        if (SDL_Init(SDL_INIT_VIDEO) != 0)
+        {
+            printf("[-] ERROR - Failed to initialise SDL (%s)\n", SDL_GetError());
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (!IMG_Init(IMG_INIT_PNG))
+    {
+        printf("[-] ERROR - Failed to initialise SDL_Image (%s)\n", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+
+    window = SDL_CreateWindow("Ma fenetre SDL", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 640, SDL_WINDOW_SHOWN);
+    if (!window)
+    {
+        printf("[-] ERROR - Failed to create SDL window (%s)\n", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    image = IMG_Load("data/plateau.png");
+    texture = SDL_CreateTextureFromSurface(renderer, image);
+    SDL_FreeSurface(image);
+
+
+    SDL_SetRenderDrawColor(renderer, 10, 200, 100, 255);
+
+    while (!quit)
+    {
+        game = 0;
+        while(game==0){
+            affich(tab, renderer);
+            game= joue(1,tab);
+        }
+        if(Endgame(tab == 1)){
+            if(comptage(tab)){
+                printf("Bravo c'est le joueur blanc qui a gagné");
+                break;
+            }
+            else{
+                printf("Bravo c'est le joueur noir qui a gagné");
+                break;
+            }
+        }
+        game = 0;
+        while(game==0){
+            affich(tab, renderer);
+            game= joue(-1,tab);
+        }
+        if(Endgame(tab == 1)){
+            if(comptage(tab)){
+                printf("Bravo c'est le joueur blanc qui a gagné");
+                break;
+            }
+            else{
+                printf("Bravo c'est le joueur noir qui a gagné");
+                break;
+            }
+        }
+        SDL_RenderClear(renderer);
+        //afficher le tableau
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        draw_circle(renderer,40,40,30, color);
+
+        SDL_RenderPresent(renderer);
+    }
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
     SDL_Quit();
-    return 0;
+
+    return EXIT_SUCCESS;
 }
